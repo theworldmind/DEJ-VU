@@ -129,9 +129,13 @@ const LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAooAAAJYCAIAAABq4FD/
 document.getElementById('brandLogo').src=LOGO;
 document.getElementById('heroLogo').src=LOGO;
 
-const defaults={gemini:'gemini-2.5-flash',anthropic:'claude-sonnet-4-20250514',deepseek:'deepseek-chat',openai:'gpt-4.1',nvidia:'meta/llama-3.3-70b-instruct'};
+const defaults={gemini:'gemini-3.8-flash',anthropic:'claude-sonnet-4-20250514',deepseek:'deepseek-chat',openai:'gpt-4.1',nvidia:'meta/llama-3.3-70b-instruct'};
 const names={gemini:'Google Gemini',anthropic:'Claude',deepseek:'DeepSeek',openai:'OpenAI',nvidia:'NVIDIA NIM'};
 let currentProvider=sessionStorage.getItem('dj_provider')||'gemini';
+// Migrate the retired Gemini model saved by the previous build.
+if ((sessionStorage.getItem('dj_model_gemini')||'') === 'gemini-2.5-flash') {
+  sessionStorage.setItem('dj_model_gemini','gemini-3.8-flash');
+}
 let mic=null, listening=false, busy=false;
 let history=[];
 const $=id=>document.getElementById(id);
@@ -160,7 +164,7 @@ async function callProvider(q,key){const p=currentProvider,model=sessionStorage.
 if(p==='gemini'){
  const body={contents:[{role:'user',parts:[{text:instruction}]}],tools:[{google_search:{}}],generationConfig:{temperature:.25}};
  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
- const data=await r.json();if(!r.ok)throw Error(data.error?.message||'Gemini API hatası');const cand=data.candidates?.[0];const text=(cand?.content?.parts||[]).map(x=>x.text||'').join('\n');const sources=[];for(const g of cand?.groundingMetadata?.groundingChunks||[]){const w=g.web;if(w?.uri)sources.push({url:w.uri,title:w.title})}return{text,sources};
+ const data=await r.json();if(!r.ok){const em=data.error?.message||'Gemini API hatası';if(/gemini-2\.5-flash|no longer available|no longer supported/i.test(em)){sessionStorage.setItem('dj_model_gemini','gemini-3.8-flash');$('model').value='gemini-3.8-flash';throw Error('Eski Gemini modeli kullanımdan kalkmış. Model otomatik olarak gemini-3.8-flash olarak güncellendi. API Ayarları sayfasına gidip bağlantıyı yeniden deneyebilirsin.')}throw Error(em)}const cand=data.candidates?.[0];const text=(cand?.content?.parts||[]).map(x=>x.text||'').join('\n');const sources=[];for(const g of cand?.groundingMetadata?.groundingChunks||[]){const w=g.web;if(w?.uri)sources.push({url:w.uri,title:w.title})}return{text,sources};
 }
 if(p==='openai'){
  const r=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},body:JSON.stringify({model,input:instruction,tools:[{type:'web_search_preview'}]})});
